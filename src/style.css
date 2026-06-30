@@ -606,3 +606,243 @@ html, body {
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 0px; }
+
+/* ─── Tally View ─────────────────────────────────────────────────────────── */
+
+/* Period toggle pills */
+.period-toggle {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px 16px;
+  flex-wrap: wrap;
+}
+.period-btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 9px 10px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.period-btn.active {
+  background: var(--mint);
+  color: white;
+  border-color: var(--mint);
+  box-shadow: 0 2px 10px rgba(80,200,120,0.35);
+}
+
+/* Big profit hero card */
+.profit-hero {
+  margin: 0 20px 10px;
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  background: linear-gradient(135deg, #1a2e24 0%, #0f1e17 100%);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+.profit-hero::before {
+  content: '';
+  position: absolute;
+  top: -30px; right: -30px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: rgba(80,200,120,0.12);
+}
+.profit-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; left: 30px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(80,200,120,0.07);
+}
+.profit-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+}
+.profit-hero-amount {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.profit-hero-amount.positive { color: #6EE7A0; }
+.profit-hero-amount.negative { color: #F87171; }
+.profit-hero-period {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  margin-top: 6px;
+  font-weight: 500;
+}
+.profit-hero-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  margin-top: 10px;
+}
+.profit-hero-trend.up { background: rgba(110,231,160,0.2); color: #6EE7A0; }
+.profit-hero-trend.down { background: rgba(248,113,113,0.2); color: #F87171; }
+.profit-hero-trend svg { width: 12px; height: 12px; }
+
+/* Tally metric cards row */
+.tally-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 0 20px;
+  margin-bottom: 10px;
+}
+.tally-metric {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.tally-metric .val { font-size: 16px; font-weight: 700; line-height: 1; }
+.tally-metric .lbl {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+}
+.tally-metric.buy  .val { color: var(--danger); }
+.tally-metric.sell .val { color: var(--mint-dark); }
+.tally-metric.litr .val { color: var(--text); }
+
+/* Margin bar */
+.margin-bar-wrap {
+  margin: 0 20px 10px;
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.margin-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.margin-bar-title { font-size: 13px; font-weight: 700; }
+.margin-bar-pct {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mint-dark);
+}
+.margin-bar-track {
+  height: 8px;
+  background: var(--bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.margin-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--mint), var(--mint-dark));
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Daily mini bar chart */
+.bar-chart-wrap {
+  margin: 0 20px 10px;
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.bar-chart-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 72px;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.bar-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+  transition: height 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.bar-fill.positive { background: linear-gradient(180deg, var(--mint), var(--mint-dark)); }
+.bar-fill.negative { background: linear-gradient(180deg, #F87171, #DC2626); }
+.bar-fill.zero     { background: var(--border); }
+.bar-day {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* Farmer breakdown list */
+.breakdown-list { display: flex; flex-direction: column; gap: 8px; padding: 0 20px; margin-bottom: 12px; }
+.breakdown-item {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.breakdown-info { flex: 1; }
+.breakdown-name { font-size: 14px; font-weight: 700; }
+.breakdown-litres { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.breakdown-amounts { text-align: right; }
+.breakdown-cost { font-size: 14px; font-weight: 700; color: var(--danger); }
+.breakdown-revenue { font-size: 11px; color: var(--mint-dark); font-weight: 600; }
+
+/* Selling price chip */
+.sell-price-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--mint-light);
+  color: var(--mint-dark);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: background var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.sell-price-chip:active { background: #C8F0D8; }
+.sell-price-chip svg { width: 14px; height: 14px; }
+
+/* 5-item nav: shrink items */
+.dynamic-island { padding: 0 6px; }
+.nav-item { padding: 8px 10px; }
+.nav-item span { font-size: 9px; }
+

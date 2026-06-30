@@ -1,4 +1,4 @@
-import type { AppState, Farmer, Entry, Payment } from './types';
+import type { AppState, Farmer, Entry, Payment, Settings, TallySummary, TallyPeriod } from './types';
 
 const STORAGE_KEY = 'rinjoya_data';
 
@@ -6,8 +6,43 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function today(): string {
+export function today(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+// ─── Date Range Helpers ───────────────────────────────────────────────────────
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+export function getPeriodRange(period: TallyPeriod): { start: string; end: string; label: string } {
+  const t = today();
+  const now = new Date(t + 'T00:00:00');
+  const dayOfWeek = now.getDay(); // 0 = Sun
+  const startOfWeek = addDays(t, -dayOfWeek);
+
+  switch (period) {
+    case 'this-week':
+      return { start: startOfWeek, end: t, label: 'This Week' };
+    case 'last-week': {
+      const s = addDays(startOfWeek, -7);
+      return { start: s, end: addDays(s, 6), label: 'Last Week' };
+    }
+    case 'this-month': {
+      const s = t.slice(0, 7) + '-01';
+      return { start: s, end: t, label: 'This Month' };
+    }
+    case 'last-month': {
+      const d2 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const s = d2.toISOString().split('T')[0];
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: s, end: last.toISOString().split('T')[0], label: 'Last Month' };
+    }
+  }
+  return { start: t, end: t, label: 'Today' };
 }
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
@@ -24,9 +59,9 @@ function getSeedData(): AppState {
   const p1 = generateId();
 
   const d = (offset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - offset);
-    return d.toISOString().split('T')[0];
+    const dt = new Date();
+    dt.setDate(dt.getDate() - offset);
+    return dt.toISOString().split('T')[0];
   };
 
   const farmers: Farmer[] = [
@@ -36,34 +71,33 @@ function getSeedData(): AppState {
   ];
 
   const entries: Entry[] = [
-    { id: e1, farmerId: f1, date: d(3), litres: 12, price: 55, total: 660, paidStatus: p1 },
-    { id: e2, farmerId: f2, date: d(3), litres: 8,  price: 52, total: 416, paidStatus: p1 },
-    { id: e3, farmerId: f1, date: d(1), litres: 14, price: 55, total: 770, paidStatus: 'unpaid' },
-    { id: e4, farmerId: f2, date: d(1), litres: 10, price: 52, total: 520, paidStatus: 'unpaid' },
-    { id: e5, farmerId: f3, date: today(), litres: 9, price: 58, total: 522, paidStatus: 'unpaid' },
+    { id: e1, farmerId: f1, date: d(3), litres: 12, price: 55, total: 660,  paidStatus: p1 },
+    { id: e2, farmerId: f2, date: d(3), litres: 8,  price: 52, total: 416,  paidStatus: p1 },
+    { id: e3, farmerId: f1, date: d(1), litres: 14, price: 55, total: 770,  paidStatus: 'unpaid' },
+    { id: e4, farmerId: f2, date: d(1), litres: 10, price: 52, total: 520,  paidStatus: 'unpaid' },
+    { id: e5, farmerId: f3, date: today(), litres: 9,  price: 58, total: 522, paidStatus: 'unpaid' },
   ];
 
   const payments: Payment[] = [
-    {
-      id: p1,
-      farmerId: f1,
-      date: d(2),
-      amount: 660 + 416,
-      periodStart: d(5),
-      periodEnd: d(3),
-      notes: 'Weekly payment',
-    },
+    { id: p1, farmerId: f1, date: d(2), amount: 660 + 416, periodStart: d(5), periodEnd: d(3), notes: 'Weekly payment' },
   ];
 
-  return { farmers, entries, payments };
+  const settings: Settings = { sellingPrice: 80 }; // default sell price
+
+  return { farmers, entries, payments, settings };
 }
 
-// ─── Load / Save ─────────────────────────────────────────────────────────────
+// ─── Load / Save ──────────────────────────────────────────────────────────────
 
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as AppState;
+    if (raw) {
+      const parsed = JSON.parse(raw) as AppState;
+      // Migrate: add settings if missing from older saved data
+      if (!parsed.settings) parsed.settings = { sellingPrice: 80 };
+      return parsed;
+    }
   } catch { /* ignore */ }
   const seed = getSeedData();
   saveState(seed);
@@ -74,7 +108,13 @@ export function saveState(state: AppState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-// ─── Farmers ─────────────────────────────────────────────────────────────────
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export function updateSettings(state: AppState, settings: Settings): AppState {
+  return { ...state, settings };
+}
+
+// ─── Farmers ──────────────────────────────────────────────────────────────────
 
 export function addFarmer(state: AppState, data: Omit<Farmer, 'id'>): AppState {
   const farmer: Farmer = { id: generateId(), ...data };
@@ -82,10 +122,7 @@ export function addFarmer(state: AppState, data: Omit<Farmer, 'id'>): AppState {
 }
 
 export function updateFarmer(state: AppState, id: string, data: Omit<Farmer, 'id'>): AppState {
-  return {
-    ...state,
-    farmers: state.farmers.map(f => f.id === id ? { ...f, ...data } : f),
-  };
+  return { ...state, farmers: state.farmers.map(f => f.id === id ? { ...f, ...data } : f) };
 }
 
 export function deleteFarmer(state: AppState, id: string): AppState {
@@ -97,7 +134,7 @@ export function deleteFarmer(state: AppState, id: string): AppState {
   };
 }
 
-// ─── Entries ─────────────────────────────────────────────────────────────────
+// ─── Entries ──────────────────────────────────────────────────────────────────
 
 export function addEntry(state: AppState, data: Omit<Entry, 'id' | 'total' | 'paidStatus'>): AppState {
   const entry: Entry = {
@@ -123,53 +160,71 @@ export function recordPayment(
   notes: string,
 ): AppState {
   const unpaid = state.entries.filter(
-    e => e.farmerId === farmerId &&
-    e.paidStatus === 'unpaid' &&
-    e.date >= periodStart &&
-    e.date <= periodEnd,
+    e => e.farmerId === farmerId && e.paidStatus === 'unpaid' && e.date >= periodStart && e.date <= periodEnd,
   );
   if (!unpaid.length) return state;
 
   const amount = unpaid.reduce((s, e) => s + e.total, 0);
-  const payment: Payment = {
-    id: generateId(),
-    farmerId,
-    date: today(),
-    amount,
-    periodStart,
-    periodEnd,
-    notes,
-  };
-
-  const entries = state.entries.map(e =>
-    unpaid.find(u => u.id === e.id) ? { ...e, paidStatus: payment.id } : e,
-  );
-
+  const payment: Payment = { id: generateId(), farmerId, date: today(), amount, periodStart, periodEnd, notes };
+  const entries = state.entries.map(e => unpaid.find(u => u.id === e.id) ? { ...e, paidStatus: payment.id } : e);
   return { ...state, entries, payments: [...state.payments, payment] };
 }
 
-// ─── Queries ──────────────────────────────────────────────────────────────────
+// ─── Tally / Profit Queries ───────────────────────────────────────────────────
+
+export function getTallySummary(state: AppState, start: string, end: string): TallySummary {
+  const inRange = state.entries.filter(e => e.date >= start && e.date <= end);
+  const litres   = inRange.reduce((s, e) => s + e.litres, 0);
+  const buyCost  = inRange.reduce((s, e) => s + e.total, 0);
+  const revenue  = +(litres * state.settings.sellingPrice).toFixed(2);
+  const profit   = +(revenue - buyCost).toFixed(2);
+  const margin   = revenue > 0 ? +((profit / revenue) * 100).toFixed(1) : 0;
+
+  const farmerBreakdown = state.farmers.map(farmer => {
+    const fe = inRange.filter(e => e.farmerId === farmer.id);
+    return {
+      farmer,
+      litres: fe.reduce((s, e) => s + e.litres, 0),
+      cost: fe.reduce((s, e) => s + e.total, 0),
+    };
+  }).filter(f => f.litres > 0).sort((a, b) => b.litres - a.litres);
+
+  return { litres, buyCost, revenue, profit, margin, farmerBreakdown };
+}
+
+// Get daily breakdown for a period (for mini bar chart)
+export function getDailyBreakdown(state: AppState, start: string, end: string): { date: string; litres: number; profit: number }[] {
+  const days: { date: string; litres: number; profit: number }[] = [];
+  let cur = start;
+  while (cur <= end) {
+    const dayEntries = state.entries.filter(e => e.date === cur);
+    const litres  = dayEntries.reduce((s, e) => s + e.litres, 0);
+    const buyCost = dayEntries.reduce((s, e) => s + e.total, 0);
+    const revenue = litres * state.settings.sellingPrice;
+    days.push({ date: cur, litres, profit: +(revenue - buyCost).toFixed(2) });
+    // advance by one day
+    const d = new Date(cur + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    cur = d.toISOString().split('T')[0];
+  }
+  return days;
+}
+
+// ─── Simple Queries ───────────────────────────────────────────────────────────
 
 export function getUnpaidTotalForFarmer(state: AppState, farmerId: string): number {
-  return state.entries
-    .filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid')
-    .reduce((s, e) => s + e.total, 0);
+  return state.entries.filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid').reduce((s, e) => s + e.total, 0);
 }
 
 export function getTodayStats(state: AppState): { litres: number; amount: number } {
   const t = today();
   const todayEntries = state.entries.filter(e => e.date === t);
-  return {
-    litres: todayEntries.reduce((s, e) => s + e.litres, 0),
-    amount: todayEntries.reduce((s, e) => s + e.total, 0),
-  };
+  return { litres: todayEntries.reduce((s, e) => s + e.litres, 0), amount: todayEntries.reduce((s, e) => s + e.total, 0) };
 }
 
 export function getMonthlyLitresForFarmer(state: AppState, farmerId: string): number {
-  const monthStart = today().slice(0, 7); // YYYY-MM
-  return state.entries
-    .filter(e => e.farmerId === farmerId && e.date.startsWith(monthStart))
-    .reduce((s, e) => s + e.litres, 0);
+  const monthStart = today().slice(0, 7);
+  return state.entries.filter(e => e.farmerId === farmerId && e.date.startsWith(monthStart)).reduce((s, e) => s + e.litres, 0);
 }
 
 // ─── Export / Import ──────────────────────────────────────────────────────────
@@ -178,37 +233,32 @@ export function exportJSON(state: AppState): void {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = `rinjoya-backup-${today()}.json`;
-  a.click();
+  a.href = url; a.download = `rinjoya-backup-${today()}.json`; a.click();
   URL.revokeObjectURL(url);
 }
 
 export function exportCSV(state: AppState): void {
-  const header = 'Date,Farmer,Litres,Price (KES),Total (KES),Status';
+  const header = 'Date,Farmer,Litres,Buy Price (KES/L),Buy Total (KES),Sell Price (KES/L),Revenue (KES),Profit (KES),Status';
   const rows = state.entries.map(e => {
-    const farmer = state.farmers.find(f => f.id === e.farmerId);
-    const status = e.paidStatus === 'unpaid' ? 'Unpaid' : 'Paid';
-    return `${e.date},"${farmer?.name ?? 'Unknown'}",${e.litres},${e.price},${e.total},${status}`;
+    const farmer  = state.farmers.find(f => f.id === e.farmerId);
+    const revenue = +(e.litres * state.settings.sellingPrice).toFixed(2);
+    const profit  = +(revenue - e.total).toFixed(2);
+    const status  = e.paidStatus === 'unpaid' ? 'Unpaid' : 'Paid';
+    return `${e.date},"${farmer?.name ?? 'Unknown'}",${e.litres},${e.price},${e.total},${state.settings.sellingPrice},${revenue},${profit},${status}`;
   });
   const csv = [header, ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = `rinjoya-entries-${today()}.csv`;
-  a.click();
+  a.href = url; a.download = `rinjoya-entries-${today()}.csv`; a.click();
   URL.revokeObjectURL(url);
 }
 
 export function importJSON(state: AppState, json: string): AppState | null {
   try {
     const parsed = JSON.parse(json) as AppState;
-    if (!Array.isArray(parsed.farmers) || !Array.isArray(parsed.entries) || !Array.isArray(parsed.payments)) {
-      return null;
-    }
+    if (!Array.isArray(parsed.farmers) || !Array.isArray(parsed.entries) || !Array.isArray(parsed.payments)) return null;
+    if (!parsed.settings) parsed.settings = { sellingPrice: state.settings.sellingPrice };
     return parsed;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
