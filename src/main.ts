@@ -532,13 +532,14 @@ function buildHTML() {
       </div>
     </div>
     <div class="card-section mt-12">
-      <div class="section-title">Data Backup</div>
-      <div class="export-row" style="padding:0">
+      <div class="section-title">Settings & Backup</div>
+      <div class="export-row" style="padding:0; margin-bottom: 8px;">
         <button class="btn btn-ghost btn-sm" id="btn-export-json">${Icons.download} JSON</button>
         <button class="btn btn-ghost btn-sm" id="btn-export-csv">${Icons.download} CSV</button>
         <button class="btn btn-outline btn-sm" id="btn-import-json">${Icons.upload} Import</button>
       </div>
       <input type="file" id="import-file" accept=".json" style="display:none">
+      <button class="btn btn-danger btn-sm" id="btn-reset-app" style="width:100%">${Icons.trash} Reset All Data</button>
     </div>
   </div>
 
@@ -816,6 +817,16 @@ function attachListeners() {
       renderView(currentView);
     };
     reader.readAsText(file);
+  });
+
+  // Reset App
+  document.getElementById('btn-reset-app')!.addEventListener('click', () => {
+    if (confirm('Are you absolutely sure you want to reset all data? This will permanently delete all farmers, deliveries, and payment logs.')) {
+      state = { farmers: [], entries: [], payments: [], settings: { sellingPrice: 80 } };
+      persist();
+      showToast('All data has been reset', 'success');
+      renderView(currentView);
+    }
   });
 
   // Farmer detail

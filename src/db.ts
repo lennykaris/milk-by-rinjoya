@@ -45,48 +45,6 @@ export function getPeriodRange(period: TallyPeriod): { start: string; end: strin
   return { start: t, end: t, label: 'Today' };
 }
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-
-function getSeedData(): AppState {
-  const f1 = generateId();
-  const f2 = generateId();
-  const f3 = generateId();
-  const e1 = generateId();
-  const e2 = generateId();
-  const e3 = generateId();
-  const e4 = generateId();
-  const e5 = generateId();
-  const p1 = generateId();
-
-  const d = (offset: number) => {
-    const dt = new Date();
-    dt.setDate(dt.getDate() - offset);
-    return dt.toISOString().split('T')[0];
-  };
-
-  const farmers: Farmer[] = [
-    { id: f1, name: 'Grace Wanjiku', phone: '0712 345 678', defaultPrice: 55 },
-    { id: f2, name: 'James Mwangi', phone: '0723 456 789', defaultPrice: 52 },
-    { id: f3, name: 'Esther Akinyi', phone: '0734 567 890', defaultPrice: 58 },
-  ];
-
-  const entries: Entry[] = [
-    { id: e1, farmerId: f1, date: d(3), litres: 12, price: 55, total: 660,  paidStatus: p1 },
-    { id: e2, farmerId: f2, date: d(3), litres: 8,  price: 52, total: 416,  paidStatus: p1 },
-    { id: e3, farmerId: f1, date: d(1), litres: 14, price: 55, total: 770,  paidStatus: 'unpaid' },
-    { id: e4, farmerId: f2, date: d(1), litres: 10, price: 52, total: 520,  paidStatus: 'unpaid' },
-    { id: e5, farmerId: f3, date: today(), litres: 9,  price: 58, total: 522, paidStatus: 'unpaid' },
-  ];
-
-  const payments: Payment[] = [
-    { id: p1, farmerId: f1, date: d(2), amount: 660 + 416, periodStart: d(5), periodEnd: d(3), notes: 'Weekly payment' },
-  ];
-
-  const settings: Settings = { sellingPrice: 80 }; // default sell price
-
-  return { farmers, entries, payments, settings };
-}
-
 // ─── Load / Save ──────────────────────────────────────────────────────────────
 
 export function loadState(): AppState {
@@ -99,9 +57,14 @@ export function loadState(): AppState {
       return parsed;
     }
   } catch { /* ignore */ }
-  const seed = getSeedData();
-  saveState(seed);
-  return seed;
+  const defaultState: AppState = {
+    farmers: [],
+    entries: [],
+    payments: [],
+    settings: { sellingPrice: 80 }
+  };
+  saveState(defaultState);
+  return defaultState;
 }
 
 export function saveState(state: AppState): void {

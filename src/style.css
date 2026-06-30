@@ -26,25 +26,44 @@
 
 html, body {
   height: 100%;
-  background: var(--bg);
+  background: #EAF0EC; /* Premium surrounding backdrop on desktop */
   font-family: 'Quicksand', system-ui, sans-serif;
   font-size: 16px;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }
 
 /* ─── App Shell ─────────────────────────────────────────────────────────────── */
 #app {
   width: 100%;
   max-width: 420px;
-  min-height: 100dvh;
-  margin: 0 auto;
+  height: 100%;
+  max-height: 100dvh;
   position: relative;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+}
+
+/* For modern high-end phones and desktop display */
+@media (min-width: 425px) {
+  body {
+    background: radial-gradient(circle at 50% 50%, #F0F5F2 0%, #DCE6E1 100%);
+  }
+  #app {
+    height: 860px;
+    max-height: 94dvh;
+    border-radius: 40px;
+    border: 10px solid #1C2B22; /* Sleek mock device border */
+    box-shadow: 0 25px 60px rgba(28,43,34,0.15);
+  }
 }
 
 /* ─── Views ─────────────────────────────────────────────────────────────────── */
@@ -52,9 +71,11 @@ html, body {
   display: none;
   flex-direction: column;
   flex: 1;
-  padding: 0 0 calc(var(--nav-h) + 16px);
+  padding: 0 0 calc(var(--nav-h) + 24px + env(safe-area-inset-bottom));
   overflow-y: auto;
+  overflow-x: hidden;
   animation: fadeSlideIn var(--transition) forwards;
+  -webkit-overflow-scrolling: touch;
 }
 .view.active { display: flex; }
 
@@ -436,7 +457,7 @@ html, body {
 /* ─── Modals & Overlays ─────────────────────────────────────────────────── */
 .modal-overlay {
   display: none;
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0,0,0,0.4);
   backdrop-filter: blur(4px);
@@ -468,7 +489,7 @@ html, body {
 
 /* ─── Toast Notification ─────────────────────────────────────────────────── */
 .toast {
-  position: fixed;
+  position: absolute;
   top: 20px;
   left: 50%;
   transform: translateX(-50%) translateY(-80px);
@@ -490,12 +511,12 @@ html, body {
 
 /* ─── Floating Dynamic Island Nav ───────────────────────────────────────── */
 .dynamic-island {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 40px);
-  max-width: 380px;
+  position: absolute;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 16px;
+  right: 16px;
+  width: auto;
+  max-width: none;
   height: 64px;
   background: var(--text);
   border-radius: var(--radius-full);
