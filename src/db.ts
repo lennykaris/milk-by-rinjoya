@@ -13,15 +13,17 @@ export function today(): string {
 // ─── Date Range Helpers ───────────────────────────────────────────────────────
 
 function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + n);
+  return date.toISOString().split('T')[0];
 }
 
 export function getPeriodRange(period: TallyPeriod): { start: string; end: string; label: string } {
   const t = today();
-  const now = new Date(t + 'T00:00:00');
-  const dayOfWeek = now.getDay(); // 0 = Sun
+  const [y, m, d] = t.split('-').map(Number);
+  const now = new Date(Date.UTC(y, m - 1, d));
+  const dayOfWeek = now.getUTCDay(); // 0 = Sun
   const startOfWeek = addDays(t, -dayOfWeek);
 
   switch (period) {
@@ -32,13 +34,13 @@ export function getPeriodRange(period: TallyPeriod): { start: string; end: strin
       return { start: s, end: addDays(s, 6), label: 'Last Week' };
     }
     case 'this-month': {
-      const s = t.slice(0, 7) + '-01';
+      const s = t.slice(0, 8) + '01';
       return { start: s, end: t, label: 'This Month' };
     }
     case 'last-month': {
-      const d2 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const s = d2.toISOString().split('T')[0];
-      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      const prevMonth = new Date(Date.UTC(y, m - 2, 1));
+      const s = prevMonth.toISOString().split('T')[0];
+      const last = new Date(Date.UTC(y, m - 1, 0));
       return { start: s, end: last.toISOString().split('T')[0], label: 'Last Month' };
     }
   }
@@ -168,10 +170,8 @@ export function getDailyBreakdown(state: AppState, start: string, end: string): 
     const buyCost = dayEntries.reduce((s, e) => s + e.total, 0);
     const revenue = litres * state.settings.sellingPrice;
     days.push({ date: cur, litres, profit: +(revenue - buyCost).toFixed(2) });
-    // advance by one day
-    const d = new Date(cur + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    cur = d.toISOString().split('T')[0];
+    // advance by one day timezone-safely
+    cur = addDays(cur, 1);
   }
   return days;
 }
