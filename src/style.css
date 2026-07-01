@@ -1055,5 +1055,11 @@ html, body {
 .activity-status-label.unpaid { color: var(--danger); }
 .activity-status-label.paid { color: var(--mint-dark); }
 .activity-status-label.sale { color: #2563EB; }
+.activity-status-label.partial { color: #D97706; }
+
+.entry-status.partial {
+  background: #FEF3C7;
+  color: #D97706;
+}
 
 

@@ -142,16 +142,43 @@ export function recordPayment(
   farmerId: string,
   periodStart: string,
   periodEnd: string,
+  payAmount: number,
   notes: string,
 ): AppState {
-  const unpaid = state.entries.filter(
-    e => e.farmerId === farmerId && e.paidStatus === 'unpaid' && e.date >= periodStart && e.date <= periodEnd,
-  );
-  if (!unpaid.length) return state;
+  const unpaid = state.entries
+    .filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid' && e.date >= periodStart && e.date <= periodEnd)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  
+  if (!unpaid.length || payAmount <= 0) return state;
 
-  const amount = unpaid.reduce((s, e) => s + e.total, 0);
-  const payment: Payment = { id: generateId(), farmerId, date: today(), amount, periodStart, periodEnd, notes };
-  const entries = state.entries.map(e => unpaid.find(u => u.id === e.id) ? { ...e, paidStatus: payment.id } : e);
+  const paymentId = generateId();
+  let remainingToPay = payAmount;
+
+  const entries = state.entries.map(e => {
+    const isTarget = unpaid.some(u => u.id === e.id);
+    if (!isTarget || remainingToPay <= 0) return e;
+
+    const currentPaid = e.paidAmount || 0;
+    const remainingOwed = +(e.total - currentPaid).toFixed(2);
+
+    if (remainingToPay >= remainingOwed) {
+      remainingToPay = +(remainingToPay - remainingOwed).toFixed(2);
+      return {
+        ...e,
+        paidAmount: e.total,
+        paidStatus: paymentId
+      };
+    } else {
+      const newPaid = +(currentPaid + remainingToPay).toFixed(2);
+      remainingToPay = 0;
+      return {
+        ...e,
+        paidAmount: newPaid
+      };
+    }
+  });
+
+  const payment: Payment = { id: paymentId, farmerId, date: today(), amount: payAmount, periodStart, periodEnd, notes };
   return { ...state, entries, payments: [...state.payments, payment] };
 }
 
@@ -203,7 +230,9 @@ export function getDailyBreakdown(state: AppState, start: string, end: string): 
 // ─── Simple Queries ───────────────────────────────────────────────────────────
 
 export function getUnpaidTotalForFarmer(state: AppState, farmerId: string): number {
-  return state.entries.filter(e => e.farmerId === farmerId && (e.paidStatus || 'unpaid') === 'unpaid').reduce((s, e) => s + e.total, 0);
+  return state.entries
+    .filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid')
+    .reduce((s, e) => s + (e.total - (e.paidAmount || 0)), 0);
 }
 
 export function getTodayStats(state: AppState): { litres: number; amount: number } {
@@ -216,6 +245,12 @@ export function getTodaySales(state: AppState): { litres: number; amount: number
   const t = today();
   const todaySales = (state.sales || []).filter(s => s.date === t);
   return { litres: todaySales.reduce((s, e) => s + e.litres, 0), amount: todaySales.reduce((s, e) => s + e.total, 0) };
+}
+
+export function getStockOnDate(state: AppState, dateStr: string): number {
+  const incoming = state.entries.filter(e => e.date === dateStr).reduce((s, e) => s + e.litres, 0);
+  const sold = (state.sales || []).filter(s => s.date === dateStr).reduce((s, e) => s + e.litres, 0);
+  return +(incoming - sold).toFixed(2);
 }
 
 export function getTodayStock(state: AppState): { incoming: number; sold: number; left: number } {

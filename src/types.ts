@@ -13,6 +13,7 @@ export interface Entry {
   price: number; // KES per litre at time of entry (buy price)
   total: number; // litres * price (buy cost)
   paidStatus: 'unpaid' | string; // 'unpaid' or paymentId
+  paidAmount?: number; // accumulated paid amount for this entry
 }
 
 export interface Payment {

@@ -7,7 +7,7 @@ import {
   addSale, deleteSale,
   recordPayment,
   updateSettings,
-  getUnpaidTotalForFarmer, getTodayStats, getTodaySales, getTodayStock, getMonthlyLitresForFarmer,
+  getUnpaidTotalForFarmer, getTodayStats, getTodaySales, getTodayStock, getStockOnDate, getMonthlyLitresForFarmer,
   getTallySummary, getDailyBreakdown, getPeriodRange,
   exportJSON, exportCSV, importJSON,
 } from './db';
@@ -281,6 +281,10 @@ function renderFarmerDetail(farmerId: string) {
   entryList.innerHTML = allEntries.map(e => {
     const { day, mon } = dateParts(e.date);
     const isPaid = e.paidStatus !== 'unpaid';
+    const paidAmt = e.paidAmount || 0;
+    const isPartial = !isPaid && paidAmt > 0;
+    const statusLabel = isPaid ? 'Paid' : isPartial ? `Partial (${fmt(paidAmt)})` : 'Unpaid';
+    const statusCls   = isPaid ? 'paid' : isPartial ? 'partial' : 'unpaid';
     const revenue = e.litres * state.settings.sellingPrice;
     const profit  = revenue - e.total;
     return `<div class="entry-item">
@@ -288,7 +292,7 @@ function renderFarmerDetail(farmerId: string) {
       <div class="entry-details">
         <div class="entry-litres">${e.litres}L · Buy KES ${e.price}/L → Sell KES ${state.settings.sellingPrice}/L</div>
         <div class="entry-price">Profit: <strong style="color:${profit >= 0 ? 'var(--mint-dark)' : 'var(--danger)'}">${fmt(profit)}</strong></div>
-        <span class="entry-status ${isPaid ? 'paid' : 'unpaid'}">${isPaid ? 'Paid' : 'Unpaid'}</span>
+        <span class="entry-status ${statusCls}">${statusLabel}</span>
       </div>
       <div>
         <div class="entry-total">${fmt(e.total)}</div>
@@ -613,14 +617,23 @@ function saveFarmer() {
 function openPayModal(farmerId: string, owed: number) {
   const modal  = document.getElementById('modal-pay')!;
   const farmer = state.farmers.find(f => f.id === farmerId)!;
-  const today  = new Date().toISOString().split('T')[0];
+  // Use the earliest unpaid entry date as period start, today as end
+  const unpaidEntries = state.entries.filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid').sort((a,b) => a.date.localeCompare(b.date));
+  const periodStart = unpaidEntries.length ? unpaidEntries[0].date : new Date().toISOString().split('T')[0];
+  const periodEnd   = new Date().toISOString().split('T')[0];
   document.getElementById('pay-farmer-name')!.textContent  = farmer.name;
   document.getElementById('pay-owed-amount')!.textContent  = fmt(owed);
-  (document.getElementById('pay-period-start') as HTMLInputElement).value = today;
-  (document.getElementById('pay-period-end') as HTMLInputElement).value   = today;
+  (document.getElementById('pay-period-start') as HTMLInputElement).value = periodStart;
+  (document.getElementById('pay-period-end') as HTMLInputElement).value   = periodEnd;
+  (document.getElementById('pay-amount') as HTMLInputElement).value       = owed > 0 ? owed.toFixed(2) : '';
   (document.getElementById('pay-notes') as HTMLInputElement).value = '';
   modal.dataset.farmerId = farmerId;
+  modal.dataset.owed     = String(owed);
   modal.classList.add('open');
+  // Wire up "Pay All" shortcut
+  document.getElementById('pay-btn-pay-all')!.onclick = () => {
+    (document.getElementById('pay-amount') as HTMLInputElement).value = owed.toFixed(2);
+  };
 }
 
 function closePayModal() { document.getElementById('modal-pay')!.classList.remove('open'); }
@@ -628,19 +641,24 @@ function closePayModal() { document.getElementById('modal-pay')!.classList.remov
 function confirmPayment() {
   const modal    = document.getElementById('modal-pay')!;
   const farmerId = modal.dataset.farmerId!;
+  const owed     = parseFloat(modal.dataset.owed || '0');
   const start    = (document.getElementById('pay-period-start') as HTMLInputElement).value;
   const end      = (document.getElementById('pay-period-end') as HTMLInputElement).value;
+  const amount   = parseFloat((document.getElementById('pay-amount') as HTMLInputElement).value);
   const notes    = (document.getElementById('pay-notes') as HTMLInputElement).value.trim();
 
-  if (!start || !end)  { showToast('Select a payment period', 'error'); return; }
-  if (start > end)     { showToast('Start date must be before end date', 'error'); return; }
+  if (!start || !end)         { showToast('Select a payment period', 'error'); return; }
+  if (start > end)            { showToast('Start must be before end date', 'error'); return; }
+  if (!amount || amount <= 0) { showToast('Enter a valid payment amount', 'error'); return; }
+  if (amount > owed + 0.001)  { showToast(`Amount exceeds outstanding balance of ${fmt(owed)}`, 'error'); return; }
 
   const prev = state;
-  state = recordPayment(state, farmerId, start, end, notes);
+  state = recordPayment(state, farmerId, start, end, amount, notes);
   if (state === prev) { showToast('No unpaid entries in that period', 'error'); return; }
 
   persist();
-  showToast('Payment recorded!', 'success');
+  const isPartial = amount < owed - 0.001;
+  showToast(isPartial ? `Partial payment of ${fmt(amount)} recorded` : 'Payment recorded!', 'success');
   closePayModal();
   renderView(currentView);
 }
@@ -997,9 +1015,20 @@ function buildHTML() {
     <div class="modal-sheet">
       <div class="modal-handle"></div>
       <div class="modal-title">Record Payment</div>
-      <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px">
-        Paying <strong id="pay-farmer-name"></strong> · Outstanding: <strong id="pay-owed-amount"></strong>
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:12px">
+        Paying <strong id="pay-farmer-name"></strong>
       </p>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--mint-light);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:16px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px">Outstanding Balance</div>
+          <div style="font-size:20px;font-weight:700;color:var(--mint-dark)" id="pay-owed-amount">KES 0</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="pay-btn-pay-all" style="font-size:12px">Pay All</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pay-amount">Amount to Pay (KES)</label>
+        <input class="form-input" type="number" id="pay-amount" placeholder="0" min="1" step="1">
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="pay-period-start">Period Start</label>
@@ -1012,7 +1041,7 @@ function buildHTML() {
       </div>
       <div class="form-group">
         <label class="form-label" for="pay-notes">Notes (optional)</label>
-        <input class="form-input" type="text" id="pay-notes" placeholder="e.g. Weekly payment" autocomplete="off">
+        <input class="form-input" type="text" id="pay-notes" placeholder="e.g. M-Pesa, Weekly payment" autocomplete="off">
       </div>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button class="btn btn-ghost" id="btn-cancel-pay" style="flex:1">Cancel</button>
@@ -1136,14 +1165,22 @@ function attachListeners() {
     const price    = parseFloat((document.getElementById('sale-price') as HTMLInputElement).value);
     const notes    = (document.getElementById('sale-notes') as HTMLInputElement).value.trim();
 
-    if (!date)     { showToast('Enter a date', 'error'); return; }
+    if (!date)              { showToast('Enter a date', 'error'); return; }
     if (!litres || litres <= 0) { showToast('Enter valid litres', 'error'); return; }
     if (!price || price <= 0)   { showToast('Enter a valid price', 'error'); return; }
+
+    // Stock validation: cannot sell more than what's available on that date
+    const stockLeft = getStockOnDate(state, date);
+    if (litres > stockLeft + 0.001) {
+      const leftMsg = stockLeft <= 0 ? 'No stock available' : `Only ${stockLeft}L available`;
+      showToast(`${leftMsg} on that date — sale cannot be completed`, 'error');
+      return;
+    }
 
     state = addSale(state, { date, litres, price, notes });
     persist();
     showToast('Sale saved!', 'success');
-    
+
     // Clear form
     (document.getElementById('sale-litres') as HTMLInputElement).value = '';
     (document.getElementById('sale-total') as HTMLInputElement).value  = '';
