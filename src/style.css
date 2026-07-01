@@ -369,6 +369,7 @@ html, body {
   color: var(--text);
   transition: border-color var(--transition), background var(--transition);
   -webkit-appearance: none;
+  appearance: none;
 }
 .form-input:focus, .form-select:focus { border-color: var(--mint); background: white; }
 .form-input.readonly { background: var(--mint-light); color: var(--mint-dark); font-weight: 700; }
