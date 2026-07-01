@@ -1,4 +1,4 @@
-import type { AppState, Farmer, Entry, Payment, Settings, TallySummary, TallyPeriod } from './types';
+import type { AppState, Farmer, Entry, Payment, Sale, Settings, TallySummary, TallyPeriod } from './types';
 
 const STORAGE_KEY = 'rinjoya_data';
 
@@ -58,6 +58,7 @@ export function loadState(): AppState {
       if (!parsed.farmers) parsed.farmers = [];
       if (!parsed.entries) parsed.entries = [];
       if (!parsed.payments) parsed.payments = [];
+      if (!parsed.sales) parsed.sales = [];
       if (!parsed.settings) parsed.settings = { sellingPrice: 80 };
       return parsed;
     }
@@ -66,6 +67,7 @@ export function loadState(): AppState {
     farmers: [],
     entries: [],
     payments: [],
+    sales: [],
     settings: { sellingPrice: 80 }
   };
   saveState(defaultState);
@@ -118,6 +120,21 @@ export function deleteEntry(state: AppState, id: string): AppState {
   return { ...state, entries: state.entries.filter(e => e.id !== id) };
 }
 
+// ─── Sales ────────────────────────────────────────────────────────────────────
+
+export function addSale(state: AppState, data: Omit<Sale, 'id' | 'total'>): AppState {
+  const sale: Sale = {
+    id: generateId(),
+    ...data,
+    total: +(data.litres * data.price).toFixed(2),
+  };
+  return { ...state, sales: [...(state.sales || []), sale] };
+}
+
+export function deleteSale(state: AppState, id: string): AppState {
+  return { ...state, sales: (state.sales || []).filter(s => s.id !== id) };
+}
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export function recordPayment(
@@ -145,8 +162,14 @@ export function getTallySummary(state: AppState, start: string, end: string): Ta
   const litres   = inRange.reduce((s, e) => s + e.litres, 0);
   const buyCost  = inRange.reduce((s, e) => s + e.total, 0);
   const revenue  = +(litres * state.settings.sellingPrice).toFixed(2);
-  const profit   = +(revenue - buyCost).toFixed(2);
-  const margin   = revenue > 0 ? +((profit / revenue) * 100).toFixed(1) : 0;
+
+  // Calculate actual revenue from recorded sales in date range
+  const salesInRange = (state.sales || []).filter(s => s.date >= start && s.date <= end);
+  const actualRevenue = +salesInRange.reduce((s, e) => s + e.total, 0).toFixed(2);
+
+  // Actual profit is actual revenue minus buy cost
+  const profit   = +(actualRevenue - buyCost).toFixed(2);
+  const margin   = actualRevenue > 0 ? +((profit / actualRevenue) * 100).toFixed(1) : 0;
 
   const farmerBreakdown = state.farmers.map(farmer => {
     const fe = inRange.filter(e => e.farmerId === farmer.id);
@@ -157,7 +180,7 @@ export function getTallySummary(state: AppState, start: string, end: string): Ta
     };
   }).filter(f => f.litres > 0).sort((a, b) => b.litres - a.litres);
 
-  return { litres, buyCost, revenue, profit, margin, farmerBreakdown };
+  return { litres, buyCost, revenue, actualRevenue, profit, margin, farmerBreakdown };
 }
 
 // Get daily breakdown for a period (for mini bar chart)
@@ -166,10 +189,11 @@ export function getDailyBreakdown(state: AppState, start: string, end: string): 
   let cur = start;
   while (cur <= end) {
     const dayEntries = state.entries.filter(e => e.date === cur);
-    const litres  = dayEntries.reduce((s, e) => s + e.litres, 0);
-    const buyCost = dayEntries.reduce((s, e) => s + e.total, 0);
-    const revenue = litres * state.settings.sellingPrice;
-    days.push({ date: cur, litres, profit: +(revenue - buyCost).toFixed(2) });
+    const daySales   = (state.sales || []).filter(s => s.date === cur);
+    const litres     = dayEntries.reduce((s, e) => s + e.litres, 0);
+    const buyCost    = dayEntries.reduce((s, e) => s + e.total, 0);
+    const actualRev  = daySales.reduce((s, sld) => s + sld.total, 0);
+    days.push({ date: cur, litres, profit: +(actualRev - buyCost).toFixed(2) });
     // advance by one day timezone-safely
     cur = addDays(cur, 1);
   }
@@ -186,6 +210,19 @@ export function getTodayStats(state: AppState): { litres: number; amount: number
   const t = today();
   const todayEntries = state.entries.filter(e => e.date === t);
   return { litres: todayEntries.reduce((s, e) => s + e.litres, 0), amount: todayEntries.reduce((s, e) => s + e.total, 0) };
+}
+
+export function getTodaySales(state: AppState): { litres: number; amount: number } {
+  const t = today();
+  const todaySales = (state.sales || []).filter(s => s.date === t);
+  return { litres: todaySales.reduce((s, e) => s + e.litres, 0), amount: todaySales.reduce((s, e) => s + e.total, 0) };
+}
+
+export function getTodayStock(state: AppState): { incoming: number; sold: number; left: number } {
+  const incoming = getTodayStats(state).litres;
+  const sold     = getTodaySales(state).litres;
+  const left     = +(incoming - sold).toFixed(2);
+  return { incoming, sold, left };
 }
 
 export function getMonthlyLitresForFarmer(state: AppState, farmerId: string): number {
@@ -224,6 +261,7 @@ export function importJSON(state: AppState, json: string): AppState | null {
   try {
     const parsed = JSON.parse(json) as AppState;
     if (!Array.isArray(parsed.farmers) || !Array.isArray(parsed.entries) || !Array.isArray(parsed.payments)) return null;
+    if (!parsed.sales) parsed.sales = [];
     if (!parsed.settings) parsed.settings = { sellingPrice: state.settings.sellingPrice };
     return parsed;
   } catch { return null; }

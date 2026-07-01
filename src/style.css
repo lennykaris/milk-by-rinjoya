@@ -918,3 +918,142 @@ html, body {
 .nav-item { padding: 8px 10px; }
 .nav-item span { font-size: 9px; }
 
+/* ─── Segmented Tabs ────────────────────────────────────────────────────────── */
+.segmented-tabs {
+  display: flex;
+  background: var(--border);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+.segment-btn {
+  flex: 1;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 10px;
+  border-radius: calc(var(--radius-md) - 4px);
+  cursor: pointer;
+  transition: all var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.segment-btn.active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+/* ─── Stock Inventory Styles ─────────────────────────────────────────────────── */
+.stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.stock-card {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+.stock-card.full-width {
+  grid-column: span 2;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.stock-card .lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.stock-card .val {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 700;
+}
+.stock-badge.surplus {
+  background: var(--mint-light);
+  color: var(--mint-dark);
+}
+.stock-badge.empty {
+  background: #F3F4F6;
+  color: #4B5563;
+}
+.stock-badge.warning {
+  background: #FEF3C7;
+  color: #D97706;
+}
+.stock-badge.danger {
+  background: #FEE2E2;
+  color: #EF4444;
+}
+
+/* ─── Today's Activity / Recent Transactions ───────────────────────────────── */
+.activity-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 8px;
+  border-left: 4px solid var(--border);
+  transition: transform var(--transition);
+}
+.activity-card.delivery {
+  border-left-color: var(--mint);
+}
+.activity-card.sale {
+  border-left-color: #60A5FA;
+}
+.activity-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.activity-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.activity-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.activity-card-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.activity-amount {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+.activity-status-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.activity-status-label.unpaid { color: var(--danger); }
+.activity-status-label.paid { color: var(--mint-dark); }
+.activity-status-label.sale { color: #2563EB; }
+
+

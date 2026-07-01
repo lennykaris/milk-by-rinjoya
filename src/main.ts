@@ -4,9 +4,10 @@ import {
   loadState, saveState,
   addFarmer, updateFarmer, deleteFarmer,
   addEntry, deleteEntry,
+  addSale, deleteSale,
   recordPayment,
   updateSettings,
-  getUnpaidTotalForFarmer, getTodayStats, getMonthlyLitresForFarmer,
+  getUnpaidTotalForFarmer, getTodayStats, getTodaySales, getTodayStock, getMonthlyLitresForFarmer,
   getTallySummary, getDailyBreakdown, getPeriodRange,
   exportJSON, exportCSV, importJSON,
 } from './db';
@@ -91,12 +92,117 @@ function shortDate(dateStr: string) {
 // ─── Home View ────────────────────────────────────────────────────────────────
 
 function renderHome() {
-  const { litres, amount } = getTodayStats(state);
-  const totalUnpaid  = state.farmers.reduce((s, f) => s + getUnpaidTotalForFarmer(state, f.id), 0);
-  document.getElementById('home-today-litres')!.textContent  = `${litres}L`;
-  document.getElementById('home-today-amount')!.textContent  = fmt(amount);
-  document.getElementById('home-total-unpaid')!.textContent  = fmt(totalUnpaid);
+  const stock = getTodayStock(state);
+  const stats = getTodayStats(state);
+  const sales = getTodaySales(state);
+  const totalUnpaid = state.farmers.reduce((s, f) => s + getUnpaidTotalForFarmer(state, f.id), 0);
+
+  // Update today's stock inventory values
+  document.getElementById('home-stock-incoming')!.textContent = `${stock.incoming}L`;
+  document.getElementById('home-stock-sold')!.textContent = `${stock.sold}L`;
+  document.getElementById('home-stock-left')!.textContent = `${stock.left}L`;
+
+  // Update remaining stock status badge
+  const badge = document.getElementById('home-stock-badge')!;
+  if (stock.incoming === 0 && stock.sold === 0) {
+    badge.textContent = 'No Activity';
+    badge.className = 'stock-badge empty';
+  } else if (stock.left > 0) {
+    badge.textContent = `${stock.left}L Surplus`;
+    badge.className = 'stock-badge surplus';
+  } else if (stock.left === 0) {
+    badge.textContent = 'Stock Cleared';
+    badge.className = 'stock-badge surplus';
+  } else {
+    badge.textContent = `${Math.abs(stock.left)}L Deficit`;
+    badge.className = 'stock-badge danger';
+  }
+
+  // Update stats grid cards
+  document.getElementById('home-today-buy-cost')!.textContent = fmt(stats.amount);
+  document.getElementById('home-today-sales-val')!.textContent = fmt(sales.amount);
+  document.getElementById('home-total-unpaid')!.textContent = fmt(totalUnpaid);
   document.getElementById('home-total-farmers')!.textContent = `${state.farmers.length}`;
+
+  // Render today's activity transactions list
+  const activityList = document.getElementById('home-activity-list')!;
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Get today's deliveries
+  const todayEntries = state.entries.filter(e => e.date === todayStr);
+  const deliveryActivity = todayEntries.map(e => {
+    const farmer = state.farmers.find(f => f.id === e.farmerId);
+    return {
+      type: 'delivery' as const,
+      id: e.id,
+      title: farmer ? farmer.name : 'Unknown Farmer',
+      sub: `${e.litres}L @ KES ${e.price}/L`,
+      amount: e.total,
+      badgeText: e.paidStatus === 'unpaid' ? 'Unpaid' : 'Paid',
+      badgeClass: e.paidStatus === 'unpaid' ? 'unpaid' : 'paid',
+      rawDate: e.id // for sorting
+    };
+  });
+
+  // Get today's sales
+  const todaySalesList = (state.sales || []).filter(s => s.date === todayStr);
+  const salesActivity = todaySalesList.map(s => {
+    return {
+      type: 'sale' as const,
+      id: s.id,
+      title: 'Milk Sale',
+      sub: `${s.litres}L @ KES ${s.price}/L${s.notes ? ` · ${s.notes}` : ''}`,
+      amount: s.total,
+      badgeText: 'Sale',
+      badgeClass: 'sale',
+      rawDate: s.id // for sorting
+    };
+  });
+
+  // Combine and sort (newest first)
+  const combined = [...deliveryActivity, ...salesActivity].sort((a, b) => b.rawDate.localeCompare(a.rawDate));
+
+  if (!combined.length) {
+    activityList.innerHTML = `<div style="text-align:center;padding:16px;font-size:13px;color:var(--text-muted)">No activity logged today</div>`;
+  } else {
+    activityList.innerHTML = combined.map(act => `
+      <div class="activity-card ${act.type}">
+        <div class="activity-card-left">
+          <div class="activity-title">${act.title}</div>
+          <div class="activity-sub">${act.sub}</div>
+        </div>
+        <div class="activity-card-right">
+          <div style="display: flex; flex-direction: column; align-items: flex-end;">
+            <div class="activity-amount" style="color: ${act.type === 'delivery' ? 'var(--danger)' : 'var(--mint-dark)'}">${act.type === 'delivery' ? '−' : '+'}${fmt(act.amount)}</div>
+            <div class="activity-status-label ${act.badgeClass}" style="text-align:right">${act.badgeText}</div>
+          </div>
+          <button class="btn-icon danger delete-activity-btn" data-type="${act.type}" data-id="${act.id}" style="padding:4px; margin-left: 8px; background: none; border: none; cursor: pointer;">
+            ${Icons.trash}
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach listeners
+    activityList.querySelectorAll('.delete-activity-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const type = (btn as HTMLElement).dataset.type!;
+        const id = (btn as HTMLElement).dataset.id!;
+        const confirmMsg = type === 'delivery' ? 'Delete this delivery entry?' : 'Delete this sale record?';
+        if (confirm(confirmMsg)) {
+          if (type === 'delivery') {
+            state = deleteEntry(state, id);
+          } else {
+            state = deleteSale(state, id);
+          }
+          persist();
+          showToast('Transaction deleted', 'success');
+          renderHome();
+        }
+      });
+    });
+  }
 }
 
 // ─── Farmers View ─────────────────────────────────────────────────────────────
@@ -209,12 +315,56 @@ function renderFarmerDetail(farmerId: string) {
 
 // ─── Add Entry View ───────────────────────────────────────────────────────────
 
+function calcSaleTotal() {
+  const litres = parseFloat((document.getElementById('sale-litres') as HTMLInputElement).value) || 0;
+  const price  = parseFloat((document.getElementById('sale-price') as HTMLInputElement).value) || 0;
+  const total  = litres * price;
+  (document.getElementById('sale-total') as HTMLInputElement).value = total > 0 ? total.toFixed(2) : '';
+}
+
+function switchAddTab(tab: 'delivery' | 'sale') {
+  const tabDel = document.getElementById('tab-delivery')!;
+  const tabSale = document.getElementById('tab-sale')!;
+  const formDel = document.getElementById('form-delivery')!;
+  const formSale = document.getElementById('form-sale')!;
+  const title = document.getElementById('add-view-title')!;
+  const desc = document.getElementById('add-view-desc')!;
+
+  if (tab === 'delivery') {
+    tabDel.classList.add('active');
+    tabSale.classList.remove('active');
+    formDel.style.display = 'block';
+    formSale.style.display = 'none';
+    title.textContent = 'Log Delivery';
+    desc.textContent = 'Record milk received from a farmer';
+  } else {
+    tabDel.classList.remove('active');
+    tabSale.classList.add('active');
+    formDel.style.display = 'none';
+    formSale.style.display = 'block';
+    title.textContent = 'Log Sale';
+    desc.textContent = 'Record milk sold to a customer';
+    // Prefill date and selling price
+    const today = new Date().toISOString().split('T')[0];
+    (document.getElementById('sale-date') as HTMLInputElement).value = today;
+    (document.getElementById('sale-price') as HTMLInputElement).value = String(state.settings.sellingPrice);
+    calcSaleTotal();
+  }
+}
+
 function renderAddEntry() {
   const sel = document.getElementById('entry-farmer') as HTMLSelectElement;
   sel.innerHTML = state.farmers.length
     ? state.farmers.map(f => `<option value="${f.id}">${f.name}</option>`).join('')
     : `<option value="">— Add a farmer first —</option>`;
   if (state.farmers.length) autoFillPrice(sel.value);
+
+  // Populate default sell price in the sale form
+  const salePriceInput = document.getElementById('sale-price') as HTMLInputElement;
+  if (salePriceInput) {
+    salePriceInput.value = String(state.settings.sellingPrice);
+    calcSaleTotal();
+  }
 }
 
 function autoFillPrice(farmerId: string) {
@@ -330,15 +480,34 @@ function renderTally() {
     `<span class="profit-hero-amount ${isPos ? 'positive' : 'negative'}">${fmt(summary.profit)}</span>`;
   document.getElementById('tally-period-label')!.textContent =
     `${label} · ${fmtDate(start)} – ${fmtDate(end)}`;
-  document.getElementById('tally-trend')!.innerHTML =
-    `<span class="profit-hero-trend ${isPos ? 'up' : 'down'}">
+  
+  // Calculate difference
+  const salesInRange = (state.sales || []).filter(s => s.date >= start && s.date <= end);
+  const soldLitres = salesInRange.reduce((s, e) => s + e.litres, 0);
+  const diff = +(summary.litres - soldLitres).toFixed(2);
+  
+  let trendHtml = `<span class="profit-hero-trend ${isPos ? 'up' : 'down'}">
       ${isPos ? Icons.trendUp : Icons.trendDown}
       ${isPos ? 'Profitable' : 'Loss'}
     </span>`;
+  if (diff > 0) {
+    trendHtml += `<span style="font-size:12px;color:var(--text-muted);margin-left:8px;font-weight:600">
+      (${diff}L unsold)
+    </span>`;
+  } else if (diff < 0) {
+    trendHtml += `<span style="font-size:12px;color:var(--danger);margin-left:8px;font-weight:600">
+      (${Math.abs(diff)}L deficit)
+    </span>`;
+  } else {
+    trendHtml += `<span style="font-size:12px;color:var(--mint-dark);margin-left:8px;font-weight:600">
+      (100% sold)
+    </span>`;
+  }
+  document.getElementById('tally-trend')!.innerHTML = trendHtml;
 
   // Metric cards
   document.getElementById('tally-buy-cost')!.textContent  = fmt(summary.buyCost);
-  document.getElementById('tally-revenue')!.textContent   = fmt(summary.revenue);
+  document.getElementById('tally-revenue')!.textContent   = fmt(summary.actualRevenue);
   document.getElementById('tally-litres')!.textContent    = `${summary.litres}L`;
 
   // Margin bar
@@ -522,16 +691,38 @@ function buildHTML() {
       </div>
     </div>
 
+    <!-- Today's Stock Dashboard -->
+    <div class="card-section">
+      <div class="section-title">Today's Stock Inventory</div>
+      <div class="stock-grid">
+        <div class="stock-card">
+          <span class="lbl">Came In Today</span>
+          <span class="val" id="home-stock-incoming">0L</span>
+        </div>
+        <div class="stock-card">
+          <span class="lbl">Sold Today</span>
+          <span class="val" id="home-stock-sold">0L</span>
+        </div>
+        <div class="stock-card full-width">
+          <div>
+            <span class="lbl">Remaining Stock</span>
+            <div class="val" id="home-stock-left">0L</div>
+          </div>
+          <span id="home-stock-badge" class="stock-badge empty">No Milk</span>
+        </div>
+      </div>
+    </div>
+
     <div class="stats-grid">
-      <div class="stat-card accent">
-        <div class="stat-label">Today's Litres</div>
-        <div class="stat-value" id="home-today-litres">0L</div>
-        <div class="stat-sub">collected today</div>
+      <div class="stat-card">
+        <div class="stat-label">Today's Buy Cost</div>
+        <div class="stat-value" id="home-today-buy-cost">KES 0</div>
+        <div class="stat-sub">expenses today</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Today's Value</div>
-        <div class="stat-value" id="home-today-amount">KES 0</div>
-        <div class="stat-sub">from deliveries</div>
+        <div class="stat-label">Today's Sales Value</div>
+        <div class="stat-value" id="home-today-sales-val">KES 0</div>
+        <div class="stat-sub">revenue today</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Total Owed</div>
@@ -547,9 +738,14 @@ function buildHTML() {
     <div class="card-section">
       <div class="section-title">Quick Actions</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-primary" id="btn-quick-add" style="flex:1;min-width:140px">${Icons.addEntry} Add Delivery</button>
-        <button class="btn btn-ghost" id="btn-quick-farmer" style="flex:1;min-width:120px">${Icons.farmers} New Farmer</button>
+        <button class="btn btn-primary" id="btn-quick-add" style="flex:1.2;min-width:130px">${Icons.addEntry} Add Delivery</button>
+        <button class="btn btn-outline" id="btn-quick-sale" style="flex:1;min-width:110px;border-color:#60A5FA;color:#2563EB">${Icons.milkDrop} Log Sale</button>
+        <button class="btn btn-ghost" id="btn-quick-farmer" style="flex:1;min-width:110px">${Icons.farmers} New Farmer</button>
       </div>
+    </div>
+    <div class="card-section mt-12">
+      <div class="section-title">Today's Activity</div>
+      <div id="home-activity-list"></div>
     </div>
     <div class="card-section mt-12">
       <div class="section-title">Settings & Backup</div>
@@ -611,9 +807,18 @@ function buildHTML() {
   <!-- ADD ENTRY -->
   <div id="view-add-entry" class="view">
     <div class="view-header">
-      <h1>Log Delivery</h1><p>Record milk received from a farmer</p>
+      <h1 id="add-view-title">Log Delivery</h1><p id="add-view-desc">Record milk received from a farmer</p>
     </div>
-    <div class="form-card">
+    
+    <div style="padding: 0 20px;">
+      <div class="segmented-tabs">
+        <button class="segment-btn active" id="tab-delivery" data-tab="delivery">Buy (Delivery)</button>
+        <button class="segment-btn" id="tab-sale" data-tab="sale">Sell (Sale)</button>
+      </div>
+    </div>
+
+    <!-- Delivery Form (Buy) -->
+    <div class="form-card" id="form-delivery">
       <div class="form-group">
         <label class="form-label" for="entry-farmer">Farmer</label>
         <select class="form-select" id="entry-farmer"></select>
@@ -639,6 +844,33 @@ function buildHTML() {
       <!-- Profit preview -->
       <div id="entry-profit-preview" style="display:none;background:var(--mint-light);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:12px;"></div>
       <button class="btn btn-primary mt-8" id="btn-save-entry">${Icons.milk} Save Delivery</button>
+    </div>
+
+    <!-- Sale Form (Sell) -->
+    <div class="form-card" id="form-sale" style="display: none;">
+      <div class="form-group">
+        <label class="form-label" for="sale-date">Date</label>
+        <input class="form-input" type="date" id="sale-date" value="${today}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="sale-litres">Litres Sold</label>
+          <input class="form-input" type="number" id="sale-litres" placeholder="0" min="0" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sale-price">Sell Price / L</label>
+          <input class="form-input" type="number" id="sale-price" placeholder="0" min="0" step="0.5">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sale-total">Sell Total (KES)</label>
+        <input class="form-input readonly" type="text" id="sale-total" readonly placeholder="Auto-calculated">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sale-notes">Notes / Payment Details</label>
+        <input class="form-input" type="text" id="sale-notes" placeholder="e.g. M-Pesa, Cash, customer name" autocomplete="off">
+      </div>
+      <button class="btn btn-primary mt-8" id="btn-save-sale" style="background: #2563EB">${Icons.milkDrop} Save Sale</button>
     </div>
   </div>
 
@@ -822,7 +1054,8 @@ function attachListeners() {
   });
 
   // Home
-  document.getElementById('btn-quick-add')!.addEventListener('click', () => navigate('add-entry'));
+  document.getElementById('btn-quick-add')!.addEventListener('click', () => { navigate('add-entry'); switchAddTab('delivery'); });
+  document.getElementById('btn-quick-sale')!.addEventListener('click', () => { navigate('add-entry'); switchAddTab('sale'); });
   document.getElementById('btn-quick-farmer')!.addEventListener('click', () => openFarmerModal());
   document.getElementById('btn-export-json')!.addEventListener('click', () => { exportJSON(state); showToast('JSON exported!', 'success'); });
   document.getElementById('btn-export-csv')!.addEventListener('click', () => { exportCSV(state); showToast('CSV exported!', 'success'); });
@@ -844,7 +1077,7 @@ function attachListeners() {
   // Reset App
   document.getElementById('btn-reset-app')!.addEventListener('click', () => {
     if (confirm('Are you absolutely sure you want to reset all data? This will permanently delete all farmers, deliveries, and payment logs.')) {
-      state = { farmers: [], entries: [], payments: [], settings: { sellingPrice: 80 } };
+      state = { farmers: [], entries: [], payments: [], sales: [], settings: { sellingPrice: 80 } };
       persist();
       showToast('All data has been reset', 'success');
       renderView(currentView);
@@ -886,6 +1119,36 @@ function attachListeners() {
     (document.getElementById('entry-litres') as HTMLInputElement).value = '';
     (document.getElementById('entry-total') as HTMLInputElement).value  = '';
     (document.getElementById('entry-profit-preview') as HTMLElement).style.display = 'none';
+    renderHome();
+    navigate('home');
+  });
+
+  // Tab switcher
+  document.getElementById('tab-delivery')!.addEventListener('click', () => switchAddTab('delivery'));
+  document.getElementById('tab-sale')!.addEventListener('click', () => switchAddTab('sale'));
+
+  // Add sale form listeners
+  document.getElementById('sale-litres')!.addEventListener('input', calcSaleTotal);
+  document.getElementById('sale-price')!.addEventListener('input', calcSaleTotal);
+  document.getElementById('btn-save-sale')!.addEventListener('click', () => {
+    const date     = (document.getElementById('sale-date') as HTMLInputElement).value;
+    const litres   = parseFloat((document.getElementById('sale-litres') as HTMLInputElement).value);
+    const price    = parseFloat((document.getElementById('sale-price') as HTMLInputElement).value);
+    const notes    = (document.getElementById('sale-notes') as HTMLInputElement).value.trim();
+
+    if (!date)     { showToast('Enter a date', 'error'); return; }
+    if (!litres || litres <= 0) { showToast('Enter valid litres', 'error'); return; }
+    if (!price || price <= 0)   { showToast('Enter a valid price', 'error'); return; }
+
+    state = addSale(state, { date, litres, price, notes });
+    persist();
+    showToast('Sale saved!', 'success');
+    
+    // Clear form
+    (document.getElementById('sale-litres') as HTMLInputElement).value = '';
+    (document.getElementById('sale-total') as HTMLInputElement).value  = '';
+    (document.getElementById('sale-notes') as HTMLInputElement).value  = '';
+
     renderHome();
     navigate('home');
   });

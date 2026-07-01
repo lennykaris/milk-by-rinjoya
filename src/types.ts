@@ -25,6 +25,15 @@ export interface Payment {
   notes?: string;
 }
 
+export interface Sale {
+  id: string;
+  date: string; // YYYY-MM-DD
+  litres: number;
+  price: number; // KES per litre sold
+  total: number; // litres * price
+  notes?: string;
+}
+
 export interface Settings {
   sellingPrice: number; // KES per litre (shop sells at this price)
 }
@@ -34,6 +43,7 @@ export interface AppState {
   entries: Entry[];
   payments: Payment[];
   settings: Settings;
+  sales: Sale[];
 }
 
 export type ViewName = 'home' | 'farmers' | 'add-entry' | 'payments' | 'farmer-detail' | 'tally';
@@ -43,8 +53,10 @@ export type TallyPeriod = 'this-week' | 'last-week' | 'this-month' | 'last-month
 export interface TallySummary {
   litres: number;
   buyCost: number;       // sum of entry totals (paid to farmers)
-  revenue: number;       // litres × sellingPrice
-  profit: number;        // revenue - buyCost
-  margin: number;        // profit / revenue * 100
+  revenue: number;       // potential revenue: litres * sellingPrice
+  actualRevenue: number; // sum of actual sales in period
+  profit: number;        // actualRevenue - buyCost (actual profit)
+  margin: number;        // profit / actualRevenue * 100
   farmerBreakdown: { farmer: Farmer; litres: number; cost: number }[];
 }
+
