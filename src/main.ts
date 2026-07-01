@@ -892,6 +892,16 @@ function attachListeners() {
   });
 }
 
+// ─── Dynamic Viewport Height Handler ──────────────────────────────────────────
+
+function setDocHeight() {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+window.addEventListener('resize', setDocHeight);
+window.addEventListener('orientationchange', setDocHeight);
+setDocHeight();
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 buildHTML();
