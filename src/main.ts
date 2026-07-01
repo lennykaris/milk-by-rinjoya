@@ -34,18 +34,23 @@ function showToast(msg: string, type: 'success' | 'error' | '' = '') {
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 function navigate(view: ViewName, farmerId?: string) {
-  currentView = view;
-  if (farmerId) detailFarmerId = farmerId;
+  try {
+    currentView = view;
+    if (farmerId) detailFarmerId = farmerId;
 
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const el = document.getElementById(`view-${view}`);
-  if (el) el.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const el = document.getElementById(`view-${view}`);
+    if (el) el.classList.add('active');
 
-  document.querySelectorAll('.nav-item').forEach(n => {
-    n.classList.toggle('active', (n as HTMLElement).dataset.view === view);
-  });
+    document.querySelectorAll('.nav-item').forEach(n => {
+      n.classList.toggle('active', (n as HTMLElement).dataset.view === view);
+    });
 
-  renderView(view);
+    renderView(view);
+  } catch (err) {
+    console.error("Navigation error:", err);
+    showToast("Failed to load view", "error");
+  }
 }
 
 function renderView(view: ViewName) {

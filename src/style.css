@@ -281,6 +281,7 @@ html, body {
   border: none;
   transition: transform var(--transition), box-shadow var(--transition), opacity var(--transition);
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .btn:active { transform: scale(0.97); }
 .btn svg { width: 16px; height: 16px; }
@@ -540,6 +541,7 @@ html, body {
   transition: color var(--transition), background var(--transition);
   position: relative;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   flex: 1;
 }
 .nav-item svg { width: 22px; height: 22px; transition: transform var(--transition); }

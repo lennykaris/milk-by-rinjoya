@@ -52,7 +52,10 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      // Migrate: add settings if missing from older saved data
+      // Guarantee all properties exist to handle migrations cleanly
+      if (!parsed.farmers) parsed.farmers = [];
+      if (!parsed.entries) parsed.entries = [];
+      if (!parsed.payments) parsed.payments = [];
       if (!parsed.settings) parsed.settings = { sellingPrice: 80 };
       return parsed;
     }
@@ -176,7 +179,7 @@ export function getDailyBreakdown(state: AppState, start: string, end: string): 
 // ─── Simple Queries ───────────────────────────────────────────────────────────
 
 export function getUnpaidTotalForFarmer(state: AppState, farmerId: string): number {
-  return state.entries.filter(e => e.farmerId === farmerId && e.paidStatus === 'unpaid').reduce((s, e) => s + e.total, 0);
+  return state.entries.filter(e => e.farmerId === farmerId && (e.paidStatus || 'unpaid') === 'unpaid').reduce((s, e) => s + e.total, 0);
 }
 
 export function getTodayStats(state: AppState): { litres: number; amount: number } {
