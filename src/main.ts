@@ -19,6 +19,7 @@ let currentView: ViewName = 'home';
 let detailFarmerId: string | null = null;
 let editFarmerId: string | null = null;
 let currentPeriod: TallyPeriod = 'this-week';
+let deferredPrompt: any = null;
 
 function persist() { saveState(state); }
 
@@ -507,6 +508,20 @@ function buildHTML() {
       <div class="logo-icon">${Icons.milkDrop}</div>
       <div><h1>Rinjoya</h1><span>Milk Shop Tracker</span></div>
     </div>
+    
+    <!-- Install Banner -->
+    <div id="install-banner" class="install-banner" style="display: none;">
+      <div class="install-icon">${Icons.milkDrop}</div>
+      <div class="install-text">
+        <h4>Install Rinjoya App</h4>
+        <p>Access your milk tracker offline instantly on your home screen.</p>
+      </div>
+      <div class="install-actions">
+        <button class="btn btn-primary btn-sm" id="btn-install-app">Install</button>
+        <button class="btn-close" id="btn-close-install">&times;</button>
+      </div>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-card accent">
         <div class="stat-label">Today's Litres</div>
@@ -897,6 +912,47 @@ function attachListeners() {
       renderTally();
     });
   });
+
+  // PWA Install Prompt Handler
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const banner = document.getElementById('install-banner');
+    if (banner && !localStorage.getItem('install-dismissed')) {
+      banner.style.display = 'flex';
+    }
+  });
+
+  document.getElementById('btn-install-app')!.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      const banner = document.getElementById('install-banner');
+      if (banner) banner.style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+
+  document.getElementById('btn-close-install')!.addEventListener('click', () => {
+    const banner = document.getElementById('install-banner');
+    if (banner) banner.style.display = 'none';
+    localStorage.setItem('install-dismissed', 'true');
+  });
+
+  // Handle iOS Safari share instructions (since iOS doesn't support beforeinstallprompt)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone && !localStorage.getItem('install-dismissed')) {
+    const banner = document.getElementById('install-banner');
+    if (banner) {
+      banner.style.display = 'flex';
+      const textEl = banner.querySelector('.install-text p')!;
+      textEl.innerHTML = 'Tap the share button in Safari, then select <strong>Add to Home Screen</strong>.';
+      const installBtn = document.getElementById('btn-install-app')!;
+      installBtn.style.display = 'none';
+    }
+  }
 }
 
 // ─── Dynamic Viewport Height Handler ──────────────────────────────────────────
