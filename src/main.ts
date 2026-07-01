@@ -708,14 +708,16 @@ function buildHTML() {
     <div id="tally-breakdown" class="breakdown-list"></div>
   </div>
 
-  <!-- ── Dynamic Island Nav ─────────────────────────────────────────── -->
-  <nav class="dynamic-island">
-    <div class="nav-item active" data-view="home">${Icons.home}<span>Home</span></div>
-    <div class="nav-item" data-view="farmers">${Icons.farmers}<span>Farmers</span></div>
-    <div class="nav-item add-entry-nav" data-view="add-entry">${Icons.milkDrop}<span>Add</span></div>
-    <div class="nav-item" data-view="payments">${Icons.payments}<span>Payments</span></div>
-    <div class="nav-item" data-view="tally">${Icons.tally}<span>Tally</span></div>
-  </nav>
+  <!-- ── Nav Wrapper ──────────────────────────────────────────────── -->
+  <div class="nav-wrapper">
+    <nav class="dynamic-island">
+      <div class="nav-item active" data-view="home">${Icons.home}<span>Home</span></div>
+      <div class="nav-item" data-view="farmers">${Icons.farmers}<span>Farmers</span></div>
+      <div class="nav-item add-entry-nav" data-view="add-entry">${Icons.milkDrop}<span>Add</span></div>
+      <div class="nav-item" data-view="payments">${Icons.payments}<span>Payments</span></div>
+      <div class="nav-item" data-view="tally">${Icons.tally}<span>Tally</span></div>
+    </nav>
+  </div>
 
   <!-- ── Modals ──────────────────────────────────────────────────────── -->
 
